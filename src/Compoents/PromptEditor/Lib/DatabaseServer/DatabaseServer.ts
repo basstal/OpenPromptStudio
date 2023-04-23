@@ -1,4 +1,6 @@
 import { fetchFromNotion } from "./lib/fetchFromNotion"
+import { EventBus } from "../../../../Global/eventBus"
+import axios from 'axios';
 
 export interface IPromptDefineItem {
     text: string
@@ -15,7 +17,7 @@ export class DatabaseServer {
     localPromptDefineMap: { [key: string]: IPromptDefineItem } = {}
     notionPromptDefineMap: { [key: string]: IPromptDefineItem } = {}
     isReady: null | Promise<boolean> = null
-    constructor() {}
+    constructor() { }
     async ready() {
         if (this.isReady != null) return this.isReady
         this.isReady = this.init()
@@ -23,9 +25,18 @@ export class DatabaseServer {
     }
     async init() {
         // localJson
-        let localPromptDescMap = await (await fetch("./localPromptDefineMap.json")).json()
-        // console.log('localPromptDescMap',localPromptDescMap)
-        this.localPromptDefineMap = localPromptDescMap
+        async function fetchData() {
+            try {
+                const response = await axios.get("http://localhost:19212/api/localPromptDefineMap");
+                const localPromptDescMap = await response.data;
+                // console.log("Local prompt description map:", localPromptDescMap);
+                return localPromptDescMap
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            }
+        }
+
+        this.localPromptDefineMap = await fetchData();
         return true
     }
     async queryPromptsDefine(prompts: string[]): Promise<IPromptDefineItem[]> {
@@ -53,10 +64,50 @@ export class DatabaseServer {
 
     async fetchNotion(options: { apiKey: string; databaseId: string }) {
         console.log("fetchNotion options", options)
-        let { defineMap, me } = await fetchFromNotion(options)
-        this.notionPromptDefineMap = defineMap
-        Object.assign(this.localPromptDefineMap, defineMap)
-        return { defineMap, me }
+        // let { defineMap, me } = await fetchFromNotion(options)
+        // this.notionPromptDefineMap = defineMap
+        // Object.assign(this.localPromptDefineMap, defineMap)
+        // return { defineMap, me }
+    }
+
+    async updatePrompt(text: string, options: {dir: string; lang_zh: string, subType:string} ) {
+        let prompt = this.localPromptDefineMap[`${text.toLowerCase()}`]
+        if (prompt == null) {
+            prompt = {
+                text: text,
+                dir: options.dir ?? '默认',
+                lang_zh: options.lang_zh,
+                subType: options.subType ?? 'normal'
+            }
+            this.localPromptDefineMap[`${text.toLowerCase()}`] = prompt
+        }
+        else {
+            prompt.text = text
+            prompt.dir = options.dir ?? prompt.dir
+            prompt.lang_zh = options.lang_zh ?? prompt.lang_zh
+            prompt.subType = options.subType ?? prompt.subType
+        }
+        try {
+            const response = await axios.post('http://localhost:19212/api/updateLocalPromptDefineMap', this.localPromptDefineMap);
+            // console.log(response.data.message);
+            EventBus.$emit("databaseServer", "update");
+        } catch (error) {
+            console.error('Error sending JSON data to server:', error);
+        }
+    }
+
+    async deletePrompt(text?: string) {
+        if (text == null) {
+            return
+        }
+        delete (this.localPromptDefineMap[`${text.toLowerCase()}`])
+        try {
+            const response = await axios.post('http://localhost:19212/api/updateLocalPromptDefineMap', this.localPromptDefineMap);
+            // console.log(response.data.message);
+            EventBus.$emit("databaseServer", "remove");
+        } catch (error) {
+            console.error('Error sending JSON data to server:', error);
+        }
     }
 }
 

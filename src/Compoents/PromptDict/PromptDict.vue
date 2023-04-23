@@ -2,7 +2,7 @@
 <template>
     <div class="PromptDict">
         <div class="notion-settings" :class="{ isHoverButton }">
-            <button
+            <!-- <button
                 class="notion-me"
                 @click="doGotoNotionMe"
                 @mousemove="setNotionHover(true)"
@@ -10,7 +10,7 @@
             >
                 <Icon icon="logos:notion-icon" />
                 {{ notionName ?? (loading ? "连接中..." : "连接我的 Notion") }}
-            </button>
+            </button> -->
 
             <div class="notion-config">
                 <div class="help">
@@ -50,18 +50,20 @@
             </button>
         </div>
 
-        <div class="active-dir" v-if="activeDir">
-            <details class="sub-dir" v-for="subDir in activeSubDirs" open :key="subDir.name">
-                <summary class="name" v-show="subDir.name != activeDir.name" >
-                    <span class="title">{{ subDir.name }}</span>
-                    <span class="len">{{ subDir.words.length }}</span>
-                </summary>
-                <div class="list">
-                    <div class="item" v-for="word in subDir.words">
-                        <PromptItem :item="word" @click="doApplyWord(word)" class="dict-word" />
+        <div class="active-dir" ref="scrollView">
+            <div class="active-dir" v-if="activeDir">
+                <details class="sub-dir" v-for="subDir in activeSubDirs" open :key="subDir.name">
+                    <summary class="name" v-show="subDir.name != activeDir.name" >
+                        <span class="title">{{ subDir.name }}</span>
+                        <span class="len">{{ subDir.words.length }}</span>
+                    </summary>
+                    <div class="list">
+                        <div class="item" v-for="word in subDir.words">
+                            <PromptItem :item="word" @click="doApplyWord(word)" class="dict-word" />
+                        </div>
                     </div>
-                </div>
-            </details>
+                </details>
+            </div>
         </div>
     </div>
 </template>
@@ -267,6 +269,8 @@ import { PromptItem } from "../PromptEditor/Sub/PromptItem"
 import { useDatabaseServer } from "../PromptEditor/Lib/DatabaseServer/DatabaseServer"
 import { useStorage } from "@vueuse/core"
 import { debounce } from "lodash"
+import { EventBus } from "../../Global/eventBus";
+import { findParentElement } from "../../Compoents/PromptEditor/Lib/findParentElement"
 
 const apiKey = useStorage<string>("ops-notion-apiKey", "")
 const databaseId = useStorage<string>("ops-notion-databaseId", "")
@@ -286,6 +290,7 @@ export default Vue.extend({
             notionUrl: <string | null>null,
             loading: false,
             isHoverButton: false,
+            activeName: <string | null>null,
         }
     },
     watch: {
@@ -304,7 +309,15 @@ export default Vue.extend({
                 }
             }
         },
+    },    
+    mounted() {
+        // 监听鼠标按下事件
+        this.$refs.scrollView.addEventListener("mousedown", this.handleMouseDown);
     },
+    beforeDestroy() {
+        // 移除事件监听器，防止内存泄漏
+        this.$refs.scrollView.removeEventListener("mousedown", this.handleMouseDown);
+    },    
     created() {
         this.loadData()
         let databaseServer = useDatabaseServer()
@@ -312,12 +325,51 @@ export default Vue.extend({
         if (this.notioConfigActive) {
             this.reloadData()
         }
+        EventBus.$on("databaseServer", (msg) => {
+            console.log('PromptDict receieve message', msg)
+            if(msg == "update" || msg == "remove")
+            {
+                this.forceRefresh()
+            }
+        });
     },
     methods: {
+        async handleMouseDown(event) {
+            // 检查鼠标按下的是否是滚轮中间按键（按键值为 1）
+            if (event.button === 1) {
+                let dropEl = <HTMLElement>event.target
+                let itemEl = findParentElement(dropEl, (el) => el.classList.contains("PromptItem"))
+                if (itemEl != null)
+                {
+                    let databaseServer = useDatabaseServer()
+                    await databaseServer.deletePrompt(itemEl.getElementsByClassName('displayName')[0].textContent)
+                    // 阻止默认行为
+                    event.preventDefault();
+                }
+            }
+        },
+        forceRefresh() {
+            this.reloadData()
+        },
         loadData() {
             getDictData(onlyMyNotion.value).then((dict) => {
                 ;(<any>this).dict = dict
-                ;(<any>this).activeDir = dict[0]
+                ;(<any>this).activeDir = null
+                if (this.activeName != null)
+                {
+                    for(let i = 0; i < dict.length; i++)
+                    {
+                        if(dict[i].name == this.activeName)
+                        {
+                            ;(<any>this).activeDir = dict[i]
+                            break
+                        }
+                    }
+                }
+                if ((<any>this).activeDir == null)
+                {
+                    ;(<any>this).activeDir = dict[0]
+                }
             })
         },
 
@@ -335,12 +387,12 @@ export default Vue.extend({
                 this.notionName = null
                 this.notionUrl = null
                 let databaseServer = useDatabaseServer()
-                let re = await databaseServer.fetchNotion({
+                /* let re = await databaseServer.fetchNotion({
                     apiKey: apiKey.value,
                     databaseId: databaseId.value,
                 })
                 this.notionName = re?.me?.name
-                this.notionUrl = re?.me?.url
+                this.notionUrl = re?.me?.url */
             } catch (e) {
                 console.error("[Notion]", e)
                 if (/Make sure the relevant pages and databases are shared with your integration/.test(e.message)) {
@@ -370,6 +422,7 @@ export default Vue.extend({
 
         doChangeActiveDir(dir: any) {
             this.activeDir = dir
+            this.activeName = dir.name
         },
 
         doGotoNotionMe() {

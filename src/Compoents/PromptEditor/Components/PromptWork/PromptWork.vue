@@ -61,8 +61,8 @@
                 </div>
                 <div class="line more-options">
                     <select v-model="inputParser" class="parser-select" v-tooltip="`提示词语法类型`">
-                        <option value="midjourney">Midjourney</option>
                         <option value="stable-diffusion-webui">stable-diffusion-webui</option>
+                        <option value="midjourney">Midjourney</option>
                     </select>
                     <button @click="doDeleteWorkspace()" v-tooltip="`删除工作区`" class="icon">
                         <Icon icon="radix-icons:trash" />
@@ -440,7 +440,7 @@ export default Vue.extend({
         return {
             inputText: "",
             outputText: "",
-            inputParser: this.promptWork?.data?.parser ?? "midjourney",
+            inputParser: this.promptWork?.data?.parser ?? "stable-diffusion-webui",
             isPNGExporting: false,
         }
     },

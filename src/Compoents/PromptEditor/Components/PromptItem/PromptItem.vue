@@ -237,6 +237,7 @@ import { IPromptWord } from "../../Lib/parsePrompts/parsePrompts"
 import { useClipboard } from "@vueuse/core"
 import initDnd from "./dnd"
 import { PromptList } from "../../Sub/PromptList"
+import { useDatabaseServer } from "../../Lib/DatabaseServer/DatabaseServer"
 let { copy } = useClipboard()
 export default Vue.extend({
     props: {
@@ -307,6 +308,9 @@ export default Vue.extend({
                 this.$emit("update")
             } else if (this.item.state.isEdit == "lang") {
                 this.item.data.word.langText = (this.$refs?.inputLang as any)?.innerText
+                let databaseServer = useDatabaseServer()
+                // console.log(this.item.data.word)
+                await databaseServer.updatePrompt(this.item.data.word.rawText, {dir:this.dir, lang_zh:this.item.data.word.langText})
             }
             this.item.state.isEdit = false
         },

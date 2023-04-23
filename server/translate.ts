@@ -1,5 +1,6 @@
 // Created on 2023/04/12 - 11:40
 import { tencentTranslate } from "./tencentTranslate"
+import { chatgptTranslate } from './chatgptTranslate';
 
 export async function translate(input: {
     text: string
@@ -14,8 +15,11 @@ export async function translate(input: {
         if (input?.server === "google") {
             // todo
         } else if (input?.server === "tencent") {
-            re = await tencentTranslate({ text: input.text, from: input?.from, to: input?.to })
-            console.log("[translate]", input.text.length + "words.", { input, re })
+            re = await tencentTranslate({ text: input.text, from: input?.from, to: input?.to });
+            console.log("[translate]", input.text.length + " words.", { input, re });
+        } else if (input?.server === "chatgpt") {
+            re = await chatgptTranslate({ text: input.text, from: input?.from, to: input?.to });
+            console.log("[translate]", input.text.length + " words.", { input, re });
         }
     } catch (e) {
         console.error('[translate] translate failed.', input, e)

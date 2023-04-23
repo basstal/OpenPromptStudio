@@ -23,7 +23,7 @@ export async function translatePrompts(testList: string[], options?: { server?: 
         if (orgWords.length == 0) return  resultList.map((x) => x[1])
         let re = await axios.post(`${options?.server ?? `${host}/translate/prompts`}`, {
             words: orgWords,
-            to: options?.to ?? "zh",
+            to: options?.to ?? "zh-cn",
         })
 
         if (re && re.data) {

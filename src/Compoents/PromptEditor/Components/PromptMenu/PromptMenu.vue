@@ -5,6 +5,16 @@
         <button @click="doEdit"><Icon icon="radix-icons:pencil-2" /> 编辑</button>
         <button @click="doEditLang"><Icon icon="cil:language" /> 编辑译文</button>
         <button @click="doDelete"><Icon icon="radix-icons:trash" /> 删除</button>
+        <label>子类型: 
+        <select v-model="subType">
+            <option value="quality">质量</option>
+            <option value="negative">负面</option>
+            <option value="style">风格</option>
+            <option value="normal">普通</option>
+        </select>
+        <label>分类: <input v-model="dir" /></label>
+        </label>
+        <button @click="doUpdatePrompt"><Icon icon="radix-icons:update" /> {{confirm}}</button>
     </div>
 </template>
 <style lang="scss">
@@ -49,6 +59,42 @@
     }
 }
 
+.PromptMenu select {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: #bcbece;
+    padding: 4px;
+    margin: 4px 0;
+    outline: none;
+}
+
+.PromptMenu label {
+  display: flex;
+  flex-direction: column;
+  color: #bcbece;
+  margin: 4px 0;
+}
+
+.PromptMenu input {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  color: #bcbece;
+  padding: 4px;
+  margin: 4px 0;
+  outline: none;
+}
+
+.PromptMenu input:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.PromptMenu input:focus {
+  border-color: #cac2ff26;
+  box-shadow: 0 0 3px #cac2ff26;
+}
+
 .PromptMenu-ghost {
     position: fixed;
     width: 100%;
@@ -59,6 +105,15 @@
 </style>
 <script>
 import { useClipboard } from "@vueuse/core"
+import { useDatabaseServer } from "../../Lib/DatabaseServer/DatabaseServer"
+import { EventBus } from "../../../../Global/eventBus"
+
+const subTypeMapping = {
+    'quality':'质量/正面',
+    'negative':'质量/负面',
+    'style':'风格',
+    'normal':'普通',
+}
 
 let { copy } = useClipboard()
 export default {
@@ -77,6 +132,21 @@ export default {
             clickW: 0,
             promptList: null,
             item: null,
+            dir: '默认',
+            subType: '',
+            confirm: '更新',
+        }
+    },
+    watch:{
+        subType :{
+            immediate: true,
+            handler(val) {
+                console.log(this)
+                
+                
+                this.dir = subTypeMapping[this.subType]
+                
+            },
         }
     },
     methods: {
@@ -99,12 +169,23 @@ export default {
             this.promptList.removePrompt(this.item)
             this.bindEl.__vue__.$emit("update")
         },
-        open({ item, el, event, promptList }) {
+        async doUpdatePrompt() {
+            this.close()
+            let databaseServer = useDatabaseServer()
+            await databaseServer.updatePrompt(this.item.data.word.rawText, {dir:this.dir, lang_zh:this.item.data.word.langText, subType:this.subType})
+        },
+        async open({ item, el, event, promptList }) {
+            // console.log('open')
             this.bindEl = el
             this.clickW = event.clientX
             this.show = true
             this.item = item
             this.promptList = promptList
+            let databaseServer = useDatabaseServer()
+            let queryResult = await databaseServer.queryPromptsDefine([this.item.data.word.rawText])
+            this.confirm = queryResult[0] == null? '添加' : '更新'
+            // ** 多于 1 个的话取第一个，后面的不管了
+            this.dir = queryResult[0] == null ? subTypeMapping[this.subType]:queryResult[0].dir
             this.updatePosition()
         },
         close() {
